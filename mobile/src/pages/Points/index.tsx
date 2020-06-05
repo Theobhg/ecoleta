@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Constants from 'expo-constants';
 import { Feather as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import { SvgUri } from 'react-native-svg'
+import { SvgUri } from 'react-native-svg';
+import * as Location from 'expo-location';
 import api from '../../services/api';
 
 interface Item {
@@ -13,16 +14,63 @@ interface Item {
   image_url: string;
 }
 
+interface Point {
+  id: number;
+  name: string;
+  image: string;
+  latitude: number;
+  longitude: number;
+}
+
 const Points = () => {
   const [items, setItems] = useState<Item[]>([]);
+  const [points, setPoints] = useState<Point[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
+
   const navigation = useNavigation();
+
+  const [initialPosition, setInitialPosition] = useState<[number, number]>([0, 0]);
+
+  useEffect(() => {
+    async function loadPosition() {
+      const { status } = await Location.requestPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert('Ops...', 'We need your permission to get your location')
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync();
+
+      const { latitude, longitude } = location.coords;
+
+      setInitialPosition([
+        latitude,
+        longitude
+      ])
+    }
+
+    loadPosition();
+  }, []);
 
   useEffect(() => {
     api.get('items').then(res => {
       setItems(res.data);
     });
   }, []);
+
+  useEffect(() => {
+    api.get('points', {
+      params: {
+        city: 'Rio de Janeiro',
+        uf: 'RJ',
+        items: [1, 2]
+      }
+
+      }).then(res => {
+        setPoints(res.data);
+      })
+    }, []);
 
   function handleNavigateBack() {
     navigation.goBack();
@@ -55,31 +103,36 @@ const Points = () => {
         <Text style={styles.description}>Find a collection point on the map.</Text>
 
         <View style={styles.mapContainer}>
-            <MapView 
+            { initialPosition[0] !== 0 && (
+             <MapView 
               style={styles.map} 
               initialRegion={{ 
-                latitude: -27.209052,
-                longitude: -49.6401092,
+                latitude: initialPosition[0],
+                longitude: initialPosition[1],
                 latitudeDelta: 0.014,
                 longitudeDelta: 0.014,
                }}
             >
-              <Marker
-                style={styles.mapMarker}
-                onPress={handleNavigateToDetail}
-                coordinate={{
-                  latitude: -27.209052, 
-                  longitude: -49.6401092, 
+            {points.map(point => (
+             <Marker
+              key={String(point.id)}
+              style={styles.mapMarker}
+              onPress={() => handleNavigateToDetail(point.id)}
+              coordinate={{
+                latitude: point.latitude, 
+                longitude: point.longitude, 
                 }} 
-              >
-                <View style={styles.mapMarkerContainer}>
-                  <Image 
-                    style={styles.mapMarkerImage} 
-                    source={{ uri:'https://images.unsplash.com/photo-1556767576-5ec41e3239ea?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=400&q=60' }}/>
-                  <Text style={styles.mapMarkerTitle}>Market</Text>
-                </View>
-              </Marker>
+            >
+              <View style={styles.mapMarkerContainer}>
+                <Image 
+                  style={styles.mapMarkerImage} 
+                  source={{ uri: point.image }}/>
+                <Text style={styles.mapMarkerTitle}>{point.name}</Text>
+              </View>
+            </Marker>
+            ))}
             </MapView>
+            )}
         </View>
       </View>
       <View style={styles.itemsContainer}>
