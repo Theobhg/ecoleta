@@ -100,3 +100,8 @@ dist/
 # Temporary folders
 tmp/
 temp/
+
+*.sqlite
+
+uploads/*
+!uploads/.gitkeep
